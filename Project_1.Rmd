@@ -1,0 +1,420 @@
+---
+title: "DDS Project1: Budwieser Case Study"
+author: "Bgaither,Alarsen,Amejia"
+date: "2/11/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+__Introduction__ 
+
+__The Purpose of this analysis is to explore and present to the leadership of Budwieser the following findings:__
+
+__The number of breweries per state in the United States.__
+__If there is any type of linear relationship to IBU (International Bitterness Unit) and ABV (Alcohol by Volume).__ 
+__Explores if there difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale using two different classification technique.__
+__If there is a difference in the ABV in different regions of the United States.__
+__If there is a difference in the IBU for the 12 OZ. and 16 OZ. serving sizes.__
+
+__This document will address the previously stated questions as well as provide the research methodolgy and address assumptions about the data.__
+
+
+
+Loading Data into R environment as well as loading the following libraries: ggplot2, car, dplyr, stringr, maps, ggpubr 
+Coercing the 'state' column in the US states spatial data to a character to be used downstream 
+```{r}
+library(ggplot2)
+library(car)
+library(dplyr)
+library(stringr)
+library(maps)
+library(ggpubr)
+
+dfBeers = read.csv("/media/andrew/29426984-e707-487c-8f66-ca5e368b23d1/Documents/School/HomeWork/DS6306_DDS/MSDS_6306_Doing-Data-Science/GItRepos/DS_6306/RawDataFiles/Beers.csv",header = TRUE)
+
+dfBreweries = read.csv("/media/andrew/29426984-e707-487c-8f66-ca5e368b23d1/Documents/School/HomeWork/DS6306_DDS/MSDS_6306_Doing-Data-Science/GItRepos/DS_6306/RawDataFiles/Breweries.csv",header = TRUE)
+
+us_states = read.csv('/media/andrew/29426984-e707-487c-8f66-ca5e368b23d1/Documents/School/HomeWork/DS6306_DDS/MSDS_6306_Doing-Data-Science/GItRepos/DS_6306/RawDataFiles/states.csv', header = TRUE)
+
+#dfBeers = read.csv(file.choose(),header = TRUE)
+
+#dfBreweries = read.csv(file.choose(),header = TRUE)
+
+#us_states = read.csv(file.choose(), header = TRUE)
+
+
+
+us_states['state'] = as.character(us_states$state)
+#head(dfBeers)
+#head(dfBreweries)
+```
+
+
+__Question of interest: How many breweries are present in each state?__
+
+__Answer:__
+__The states with the largest amounts of breweries are Colorado, California and Michigan. The states with the fewest amounts of breweries are North Dakota, South Dakota and West Virginia. The states with the largest amounts of breweries tend to be states with moderate to high populations that have strong craft brew scenes. The states with the fewest amounts of breweries tend to be lower population, rural states.__
+
+```{r fig.height = 5, fig.width = 12}
+#
+data.frame(table(dfBreweries$State)) %>% ggplot(aes(x = State, y = Freq), mapping=aes(x = reorder(Var1, -Freq), y = Freq)) + geom_bar(stat = "Identity", fill="blue") + xlab("State") + ylab("Count") + ggtitle("Number of Breweries by State")
+#
+```
+
+Let's use the data above to determine how the states make up the total cumulative percent of all breweries using a Pareto Analysis
+```{r}
+myDF = dfBreweries %>% count(dfBreweries$State)
+#descending sort
+myDF <- myDF[order(myDF$n, decreasing = TRUE),]
+#adding a cumulative sum
+myDF$cumulative <- cumsum(myDF$n)
+colnames(myDF) <- c("State", "Count", "Cumulative")
+
+library(ggQC)
+
+ggplot(myDF, aes(x=reorder(State, -Count), y=Count)) + geom_bar(stat="identity") + theme(axis.text.x=element_text(angle=90,hjust=1)) + stat_pareto(point.color="red", point.size=2, line.color="black", bars.fill = c("blue", "orange"))+ labs(title = "Pareto of Breweries by State", x='States', y='Count')
+
+```
+
+Merge the individual data frames such that the data set to be used in the analysis
+```{r}
+dfFull = left_join(dfBeers, dfBreweries, by= c("Brewery_id"="Brew_ID"))
+dfFull['State'] = as.character(str_trim(dfFull$State))
+dfFull = left_join(dfFull, us_states, by = c("State" = "state"))
+#head(dfFull)
+#tail(dfFull)
+#dfFull %>% filter(!is.na(IBU))
+#to evaluate IPAs against Ales
+dfFull["Ales"] = ifelse(grepl("IPA", dfFull$Style),"IPA", ifelse(grepl("Ale", dfFull$Style),"Ale","Other"))
+dfFull$Ales = as.factor(dfFull$Ales)
+```
+
+Formatting the dataframe
+```{r}
+#rename the columns for beer and brewery name
+dfFull = dfFull %>% rename(Beer_Name = Name.x, Brewery_Name = Name.y)
+#checking to see which columns have NA's
+colnames(dfFull)[colSums(is.na(dfFull))>0]
+```
+
+
+__Question of Interest: How many missing values are in the dataset for ABV and IBU?__
+__There are 62 Missing values for ABV and 1005 Missing values for IBU__
+```{r}
+
+print(dim(dfFull[is.na(dfFull$ABV),])[1]) 
+print(dim(dfFull[is.na(dfFull$IBU),])[1])
+
+```
+
+
+__Question of Interest: Which state has the maximum alcoholic (ABV) beer? Which state has the most bitter (IBU) beer after computing the median IBU and ABV?__
+
+
+__Answer:__
+__Looking at Median Alcohol by Volume by State and Median IBU's by State. The median ABV is highest in DC, Kentucky and Maine, while ABV tends to be lowest in Wyoming, New Jersey and Utah. Utah has a maximum ABV for beer, so its lower median ABV makes sense. The highest median IBU is in Maine, West Virginia and Florida. The lowest median IBU is in Arizona, Kansas and Wisconsin.__
+
+```{r fig.height = 5, fig.width = 12}
+dfIBU = dfFull %>% filter(!is.na(IBU))
+dfABV = dfFull %>% filter(!is.na(ABV))
+ggplot(data=aggregate(dfABV$ABV, by=list(dfABV$State), FUN=median), mapping=aes(x = reorder(Group.1,-x), y = x)) + geom_bar(stat = "identity", fill="blue") + xlab("State") + ylab("ABV") + ggtitle("Median Alcohol By Volume (ABV) by State")
+
+ggplot(data=aggregate(dfIBU$IBU, by=list(dfIBU$State), FUN=median), mapping=aes(x = reorder(Group.1,-x), y = x)) + geom_bar(stat = "identity", fill="blue") + xlab("State") + ylab("IBU") + ggtitle("Median International Bitterness Unit (IBU) by State")
+
+
+```
+
+
+Generating map to look at Max Alcohol by Volume by State and Max IBU's by State
+```{r fig.height = 5, fig.width = 12}
+
+ggplot(data=aggregate(dfABV$ABV, by=list(dfABV$State), FUN=max), mapping=aes(x = reorder(Group.1,-x), y = x)) + geom_bar(stat = "identity", fill="blue") + xlab("State") + ylab("ABV") + ggtitle("Maximum Alcohol By Volume (ABV) by State")
+
+ggplot(data=aggregate(dfIBU$IBU, by=list(dfIBU$State), FUN=max), mapping=aes(x = reorder(Group.1,-x), y = x)) + geom_bar(stat = "identity", fill="blue") + xlab("State") + ylab("IBU") + ggtitle("Maximum International Bitterness Unit (IBU) by State")
+
+#Mapps of Max IBU by State 
+
+usa = map_data("usa")
+
+p <- ggplot() + 
+  geom_polygon(data = usa, aes(x = long, y = lat, group = group), fill = "lightblue", color = "black") + 
+  coord_quickmap()
+
+#takes aggregates and labels coordinates
+
+agg = aggregate(dfIBU$IBU, by=list(dfIBU$State), FUN=max)
+
+state_agg = inner_join(agg, us_states, by = c("Group.1" = "state"))
+
+state_agg = state_agg[order(state_agg$x, decreasing = TRUE)[1:10],]
+  
+#layers on plots with each state and aggregate 
+
+
+p + geom_point(data = state_agg, aes(x = longitude, y = latitude)) + geom_text(data = state_agg, aes(x = longitude, y = latitude, label = x), hjust = 0 , nudge_x = 0.75, color = "red" )+
+   geom_text(data = state_agg, aes(x = longitude, y = latitude, label = name), hjust = 1 , nudge_x = 3, nudge_y = -1, color = "red" )+
+  coord_fixed(1.50) + # fix lat/long display ratio
+  ggtitle("Top 10 States with Greatest IBU") + theme_bw() + theme(plot.title = element_text(hjust = 0.5)) +  theme(panel.border = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "Black")) + 
+  theme(legend.position = "none",
+        axis.title.x=element_blank(), # hide x axis title
+        axis.text.x=element_blank(),  # hide x axis text
+        axis.ticks.x=element_blank(), # hide x axis ticks
+        axis.title.y=element_blank(), # hide y axis title
+        axis.text.y=element_blank(),  # hide y axis text
+        axis.ticks.y=element_blank()) # hide y axis ticks
+
+
+
+
+agg = aggregate(dfABV$ABV, by=list(dfABV$State), FUN=max)
+
+state_agg = inner_join(agg, us_states, by = c("Group.1" = "state"))
+
+state_agg = state_agg[order(state_agg$x, decreasing = TRUE)[1:10],]
+
+
+p + geom_point(data = state_agg, aes(x = longitude, y = latitude)) + geom_text(data = state_agg, aes(x = longitude, y = latitude, label = round((x*100)), digits = 3), hjust = 0 , nudge_x = 1, color = "red" )+
+   geom_text(data = state_agg, aes(x = longitude, y = latitude, label = name), hjust = 1 , nudge_x = 2, nudge_y = -1, color = "red" )+
+  coord_fixed(1.50) + # fix lat/long display ratio
+  ggtitle("Top 10 States With Greatest ABV") + theme_bw() + theme(plot.title = element_text(hjust = 0.5)) +  theme(panel.border = element_blank(), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), axis.line = element_line(colour = "Black")) + 
+  theme(legend.position = "none",
+        axis.title.x=element_blank(), # hide x axis title
+        axis.text.x=element_blank(),  # hide x axis text
+        axis.ticks.x=element_blank(), # hide x axis ticks
+        axis.title.y=element_blank(), # hide y axis title
+        axis.text.y=element_blank(),  # hide y axis text
+        axis.ticks.y=element_blank()) # hide y axis ticks
+
+
+
+
+```
+__Question of Interest: Comment on the Summary Statistics of ABV and its Distribution__
+
+__ABV Distribution + Summary Statistics__
+```{r}
+summary(dfABV$ABV)
+```
+
+__Answer:__
+__We would like to get a better understanding of the distribution of ABV to get a sense of what ABV most beers contain. The majority of beers contain ~.05 ABV__
+```{r}
+ggplot(dfABV, aes(x=dfABV$ABV)) + geom_histogram(colour="black", fill="blue") + xlab("ABV") + ylab("Frequency") + ggtitle("Distribution of ABV")
+ggplot(dfABV, aes(x=dfABV$Ales, y=dfABV$ABV)) + geom_boxplot(outlier.color="black", outlier.shape=16, outlier.size=2, notch=FALSE)+ ggtitle("Boxplot of Ales vs ABV")+ xlab("Ales") + ylab("ABV")
+```
+
+
+__Question of Interest: s there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  Make your best judgment of a relationship?__
+
+__Answer:__
+__We would like to investigate whether there is a relationship between ABV and IBU.  To start out, we have created a scatterplot of ABV to IBU to look for visual indication of a relationship.  We also checked by logging the variables to see if the relationship observed increased.  There does appear to be a slight positive linear relationship, but we'll continue our analysis by checking the correlation of these variables next.__
+```{r}
+
+dfRM = na.omit(dfFull)
+dfRM["Log_IBU"] = log(dfRM$IBU)
+dfRM["Log_ABV"] = log(dfRM$ABV)
+dfRM["Logit_ABV"] = logit(dfRM$ABV)
+ggplot(data = dfRM, mapping = aes(x = dfRM$ABV, y = dfRM$IBU )) + geom_point() + xlab("ABV") + ylab("IBU") + ggtitle("Relatinship of ABV to IBU, ABV vs. IBU")
+ggplot(data = dfRM, mapping = aes(x = dfRM$Log_ABV, y = dfRM$Log_IBU )) + geom_point() + xlab("Log_ABV") + ylab("Log_IBU") + ggtitle("Relatinship of ABV to IBU, Log ABV vs. Log IBU") + geom_smooth()
+
+ggplot(data = dfRM, mapping = aes(x = dfRM$Logit_ABV, y = dfRM$IBU )) + geom_point() + xlab("Logit_ABV") + ylab("IBU") + ggtitle("Relationship of ABV to IBU, Logit ABV vs. IBU") + geom_smooth()
+ggplot(data = dfRM, mapping = aes(x = dfRM$Logit_ABV, y = dfRM$Log_IBU, color = Ales)) + geom_point() + xlab("Logit_ABV") + ylab("Log_IBU") + ggtitle("Relationship of ABV to IBU, Logit ABV vs. Log IBU")
+ggplot(data = dfRM, mapping = aes(x = dfRM$Logit_ABV, y = dfRM$Log_IBU)) + geom_point() + xlab("Logit_ABV") + ylab("Log_IBU") + ggtitle("Relationship of ABV to IBU, Logit ABV vs. Log IBU") + geom_smooth()
+
+```
+
+__Question of Interest: Is there an apparent relationship between the bitterness of the beer and its alcoholic content? __
+
+__Answer:__
+
+__We would like to investigate if there is a relationship between the bitterness of the beer and it's alcoholic content while at the same time trying to identify a relationship between Ales, IPA's and other styles of beer.  Looking at the relationship of ABV and IBU to Ales, IPA and other style of beer we can see there is a positive correlation between ABV and IBU and we can also see evidence of clusters around the styles of beer. To do this in a more formal manner, we perform a pearson correlation between the two variables.  The result is a positive correlation with a pearsons correlation value of 0.671.__
+
+```{r}
+library(GGally)
+dfRM %>% 
+select(ABV, IBU) %>% 
+ggpairs(title = "ABV vs. IBU")
+dfRM %>% select(Logit_ABV, Log_IBU) %>% ggpairs(title = "Logit_ABV vs. Log_IBU")
+```
+
+
+```{r}
+dfRM %>% 
+select(ABV, IBU, Ales) %>% 
+ggpairs(aes(color = Ales))
+
+#Adding output from Pearson's product moment correlation test
+
+cor.test(dfRM$ABV, dfRM$IBU, method=c("pearson", "kendall", "spearman"))
+```
+
+__Question of Interest:  Is there a difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale (any beer with “Ale” in its name other than IPA)?__
+
+__Answer:__
+
+__We would like to investigate the difference with respect to IBU and ABV between IPAs and other types of Ale.  To do this, we will construct both a KNN (k- Nearest Neighbor) model and NBB (Nieve-Bayes)we construct a dataframe to include only the ABV, IBU and Ales indicator, excluding missing values, to build a training and test set for further analysis.__
+```{r}
+library(dplyr)
+
+set.seed(6)
+splitPerc = .75
+
+dfAles = dfRM %>% filter(Ales == "Ale" | Ales == "IPA")
+dfAles = dfAles %>% select(ABV,IBU,Ales)
+summary(dfAles)
+dfAles = droplevels(dfAles,exclude = "Other")
+summary(dfAles)
+
+trainIndices = sample(1:dim(dfAles)[1],round(splitPerc * dim(dfAles)[1]))
+train = dfAles[trainIndices,]
+test = dfAles[-trainIndices,]
+colnames(dfAles)[colSums(is.na(dfAles))>0]
+```
+
+__Next, we want to iterate through multiple classification attempts where we test with k=1 to 30 to determine the optimal k value.  The result is that the optimal k value is 5 as can be seen in the resulting chart.__
+```{r}
+library(class)
+library(caret)
+library(e1071)
+
+iterations = 500
+numks = 30
+
+masterAcc = matrix(nrow = iterations, ncol = numks)
+  
+for(j in 1:iterations)
+{
+accs = data.frame(accuracy = numeric(30), k = numeric(30))
+trainIndices = sample(1:dim(dfAles)[1],round(splitPerc * dim(dfAles)[1]))
+train = dfAles[trainIndices,]
+test = dfAles[-trainIndices,]
+for(i in 1:numks)
+{
+  classifications = knn(train[,c("ABV", "IBU")],test[,c("ABV", "IBU")],train$Ales, prob = TRUE, k = i)
+  table(classifications,test$Ales)
+  CM = confusionMatrix(table(classifications,test$Ales))
+  masterAcc[j,i] = CM$overall[1]
+}
+
+}
+
+MeanAcc = colMeans(masterAcc)
+
+plot(seq(1,numks,1),MeanAcc, type = "l")
+```
+
+__Now that we know the optimum k value is 5, we run the KNN with k=5.__
+
+__We can see below that we can classify Ales and IPA's by their ABV and IBU values with an accuracy of 87%. We also created a NBB model using the same dataset__
+```{r}
+trainIndices = sample(1:dim(dfAles)[1],round(splitPerc * dim(dfAles)[1]))
+train = dfAles[trainIndices,]
+test = dfAles[-trainIndices,]
+
+# k = 5
+classifications = knn(train[,c("ABV", "IBU")],test[,c("ABV", "IBU")],train$Ales, prob = TRUE, k = 5)
+table(test$Ales,classifications)
+confusionMatrix(table(test$Ales,classifications))
+```
+
+
+```{r}
+### NB model 
+
+model_2 = naiveBayes(train[,c("ABV", "IBU")],train$Ales)
+table_cm = table(predict(model_2, test[,c("ABV", "IBU")]), test$Ales)
+CM = confusionMatrix(table_cm)
+CM
+
+
+
+```
+
+__Additional Insights:__
+
+__Quetion of Interest: Is there a difference in the size of beer and region the beer came from and do they effect ABV or IBU?__
+
+__Answer__: 
+
+__We decided to run a two-way ANOVA on the size of the beer and the region that the beer came from to determine if these two variables have an effect on ABV or IBU. The regions were defined as "Northeast", "Midwest", "South" and "West", from the census regions of the United States. Not enough beers came from Hawaii or Alaska, so the Pacific region was excluded. The size of the beer was limited to "12oz" and "16oz" since other sizes also did not have enough beers. Plots were run, and visually it looks like both size of the beer and region do have an effect on both ABV and IBU, but there doesn't look like there is an interaction term. Running our two-way ANOVA showed no interaction term for IBU nor ABV, but both region and size of the beer has an effect on both ABV and IBU. This means that the effects of the size of the beer and region have on ABV and IBU are independent, thus we can look at the differences in ABV and IBU in each region. Both ABV and IBU are statistically larger in 16oz beers than 12oz beers. The only statistically significant difference in region IBU is the 6.8 IBU average difference between the West and Midwest regions. The only statistically significant difference in region ABV is the 0.22% average ABV difference between the Midwest and Northeast regions.__
+```{r}
+## Question 9: Data parsing + Box plots
+dfFull$Ounces = as.factor(dfFull$Ounces)
+dfFull$State = as.character(dfFull$State)
+# Cut state into 4 regions
+dfFull$Region = Recode(dfFull$State, "c('CT', 'ME', 'MA', 'NH', 'RI', 'VT', 'NJ', 'NY', 'PA') ='Northeast'; c('OH','IN','IL','MI','WI','MN','IA','MO','KS','NE','SD','ND') = 'MidWest'; c('TX','OK','AR','LA','MS','AL','TN','KY','WV','MD','DC','DE','VA','NC','SC', 'GA','FL') = 'South'; c('HI','AK') = 'Pacific'; c('NM','CO','WY','MT','ID','UT','AZ','NV','CA','OR','WA') = 'West'")
+dfFull$Region = as.factor(dfFull$Region)
+
+# Use only 12 and 16 ounce beers
+dfFull = dfFull[dfFull$Ounces == 12 | dfFull$Ounces == 16,]
+dfFull = dfFull[dfFull$Region != 'Pacific',]
+# my summary for use with boxplots
+mysummary<-function(x){
+  result<-c(length(x),mean(x),sd(x),sd(x)/sqrt(length(x)), min(x), max(x), IQR(x))
+  names(result)<-c("N","Mean","SD","SE", "Min", "Max", "IQR")
+  return(result)
+}
+# Create boxplots for both ABV and IBU
+dfABV = dfFull %>% filter(!is.na(ABV))
+ggboxplot(dfABV, x="Region", y="ABV", color="Ounces", pallette = c("#00AFBB", "#E7B800"))+
+ggtitle("ABV of 12oz and 16oz Cans For Each Region")
+
+dfIBU = dfFull %>% filter(!is.na(IBU))
+ggboxplot(dfIBU, x="Region", y="IBU", color="Ounces", pallette = c("#00AFBB", "#E7B800"))+
+ggtitle("IBU of 12oz and 16oz Cans For Each Region")
+```
+
+```{r}
+# Create line graphs with standard deviation bars
+ABVsumstats<-aggregate(ABV~Region*Ounces,data=dfABV,mysummary)
+ABVsumstats<-cbind(ABVsumstats[,1:2],ABVsumstats[,-(1:2)])
+
+ggplot(ABVsumstats,aes(x=Region,y=Mean,group=Ounces,colour=Ounces))+
+  ylab("ABV")+
+  geom_line()+
+  geom_point()+
+  ggtitle("ABV of 12oz and 16oz Cans For Each Region")+
+  geom_errorbar(aes(ymin=Mean-SD,ymax=Mean+SD),width=.1)
+```
+```{r}
+# Line graph with IBU
+IBUsumstats<-aggregate(IBU~Region*Ounces,data=dfIBU,mysummary)
+IBUsumstats<-cbind(IBUsumstats[,1:2],IBUsumstats[,-(1:2)])
+
+ggplot(IBUsumstats,aes(x=Region,y=Mean,group=Ounces,colour=Ounces))+
+  ylab("IBU")+
+  geom_line()+
+  geom_point()+
+  ggtitle("IBU of 12oz and 16oz Cans For Each Region")+
+  geom_errorbar(aes(ymin=Mean-SD,ymax=Mean+SD),width=.1)
+```
+
+
+```{r}
+# Run two-way ANOVA
+res.aov <- aov(dfIBU$IBU ~ dfIBU$Region + dfIBU$Ounces + dfIBU$Region:dfIBU$Ounces)
+summary(res.aov)
+```
+
+```{r}
+#IBU comparisons
+TukeyHSD(res.aov)
+
+```
+
+
+```{r}
+# ABV two-way ANOVA
+res.aov2 <- aov(dfABV$ABV ~ dfABV$Region + dfABV$Ounces + dfABV$Region:dfABV$Ounces)
+summary(res.aov2)
+```
+
+```{r}
+#ABV Comparisons
+TukeyHSD(res.aov2)
+```
+
+
+
