@@ -59,4 +59,4 @@ The Project_1.Rmd file is the R markdown file that contains the R code used for 
 
 The Project_1.html file is the HTML output of the R markdown file code base. 
 
-The Project_1.PPTX file is the presentation of the exploratory data analysis as well as the unique anlysis proposed by the project team. 
+The Project_1_Final_BG.PPTX file is the presentation of the exploratory data analysis as well as the unique anlysis proposed by the project team. 
