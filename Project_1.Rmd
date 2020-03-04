@@ -14,7 +14,7 @@ __The Purpose of this analysis is to explore and present to the leadership of Bu
 
 __The number of breweries per state in the United States.__
 __If there is any type of linear relationship to IBU (International Bitterness Unit) and ABV (Alcohol by Volume).__ 
-__Explores if there difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale using two different classification technique.__
+__Explores if there is a difference with respect to IBU and ABV between IPAs (India Pale Ales) and other types of Ale using two different classification techniques.__
 __If there is a difference in the ABV in different regions of the United States.__
 __If there is a difference in the IBU for the 12 OZ. and 16 OZ. serving sizes.__
 
@@ -32,11 +32,11 @@ library(stringr)
 library(maps)
 library(ggpubr)
 
-dfBeers = read.csv("/media/andrew/29426984-e707-487c-8f66-ca5e368b23d1/Documents/School/HomeWork/DS6306_DDS/MSDS_6306_Doing-Data-Science/GItRepos/DS_6306/RawDataFiles/Beers.csv",header = TRUE)
+dfBeers = read.csv("C:/Users/BGaither/Documents/GitHub/DS_6306/RawDataFiles/Beers.csv",header = TRUE)
 
-dfBreweries = read.csv("/media/andrew/29426984-e707-487c-8f66-ca5e368b23d1/Documents/School/HomeWork/DS6306_DDS/MSDS_6306_Doing-Data-Science/GItRepos/DS_6306/RawDataFiles/Breweries.csv",header = TRUE)
+dfBreweries = read.csv("C:/Users/BGaither/Documents/GitHub/DS_6306/RawDataFiles/Breweries.csv",header = TRUE)
 
-us_states = read.csv('/media/andrew/29426984-e707-487c-8f66-ca5e368b23d1/Documents/School/HomeWork/DS6306_DDS/MSDS_6306_Doing-Data-Science/GItRepos/DS_6306/RawDataFiles/states.csv', header = TRUE)
+us_states = read.csv('C:/Users/BGaither/Documents/GitHub/DS_6306/RawDataFiles/states.csv', header = TRUE)
 
 #dfBeers = read.csv(file.choose(),header = TRUE)
 
@@ -114,7 +114,7 @@ __Question of Interest: Which state has the maximum alcoholic (ABV) beer? Which 
 
 
 __Answer:__
-__Looking at Median Alcohol by Volume by State and Median IBU's by State. The median ABV is highest in DC, Kentucky and Maine, while ABV tends to be lowest in Wyoming, New Jersey and Utah. Utah has a maximum ABV for beer, so its lower median ABV makes sense. The highest median IBU is in Maine, West Virginia and Florida. The lowest median IBU is in Arizona, Kansas and Wisconsin.__
+__Looking at Median Alcohol by Volume by State and Median IBU's by State, the median ABV is highest in DC, Kentucky and Maine, while ABV tends to be lowest in Wyoming, New Jersey and Utah. Utah has a maximum ABV for beer, so its lower median ABV makes sense. The highest median IBU is in Maine, West Virginia and Florida. The lowest median IBU is in Arizona, Kansas and Wisconsin.__
 
 ```{r fig.height = 5, fig.width = 12}
 dfIBU = dfFull %>% filter(!is.na(IBU))
@@ -206,7 +206,7 @@ ggplot(dfABV, aes(x=dfABV$Ales, y=dfABV$ABV)) + geom_boxplot(outlier.color="blac
 ```
 
 
-__Question of Interest: s there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  Make your best judgment of a relationship?__
+__Question of Interest: is there an apparent relationship between the bitterness of the beer and its alcoholic content? Draw a scatter plot.  Make your best judgment of a relationship?__
 
 __Answer:__
 __We would like to investigate whether there is a relationship between ABV and IBU.  To start out, we have created a scatterplot of ABV to IBU to look for visual indication of a relationship.  We also checked by logging the variables to see if the relationship observed increased.  There does appear to be a slight positive linear relationship, but we'll continue our analysis by checking the correlation of these variables next.__
